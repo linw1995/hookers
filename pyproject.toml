@@ -1,8 +1,26 @@
 [tool.poetry]
 name = "hookers"
 version = "0.1.0"
-description = ""
+license = "MIT"
+description = "Python function call hookers"
 authors = ["林玮 (Jade Lin) <linw1995@icloud.com>"]
+readme = "README.md"
+homepage = "https://github.com/linw1995/hookers"
+repository = "https://github.com/linw1995/hookers"
+classifiers = [
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3.9",
+    "Development Status :: 1 - Planning",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS :: MacOS X",
+    "Operating System :: Microsoft :: Windows",
+]
+include = ["CHANGELOG.md"]
+
+[tool.poetry.urls]
+"Bug Tracker" = "https://github.com/linw1995/hookers/issues"
 
 [tool.poetry.dependencies]
 python = "^3.9"
