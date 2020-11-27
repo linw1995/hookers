@@ -124,3 +124,24 @@ def test_hook_func_with_isolating_closure():
 
         with hooker.call_before(dump_input):
             func()
+
+
+def test_hook_obj_method():
+    class Person:
+        def hello(self, name):
+            return f"hello {name}"
+
+    person = Person()
+    args = ("world",)
+    kwargs = {}
+    rv = "hello world"
+
+    with hook(person.hello) as hooker:
+        inputs = []
+
+        def dump_input(*args, **kwargs):
+            inputs.append((args, kwargs))
+
+        with hooker.call_before(dump_input):
+            assert person.hello(*args, **kwargs) == rv
+            assert inputs == [(args, kwargs)]
