@@ -1,9 +1,11 @@
 import ctypes
+import sys
 from contextlib import ExitStack, contextmanager
 from functools import partial
 from inspect import currentframe
+from pathlib import Path
 from types import FrameType
-from typing import Any, Dict, Generator, Optional
+from typing import Any, Callable, Dict, Generator, Optional
 
 
 @contextmanager
@@ -44,8 +46,8 @@ def _temporary_replace_scope_from_frame(frame: FrameType, target: Any, new: Any)
 class Hooker:
     def __init__(self, func):
         self.func = func
-        self.original = None
         self.before_funcs = []
+        self._current_file_path = Path(currentframe().f_code.co_filename)
 
     def call_before(self, func):
         self.before_funcs.append(func)
@@ -68,6 +70,30 @@ class Hooker:
 
         return self.func(*args, **kwargs)
 
+    def trace_func(
+        self, frame: FrameType, event: str, arg: Any
+    ) -> Optional[Callable[[FrameType, str, Any], Any]]:
+        assert event == "call"
+        if not self.hooking:
+            sys.settrace(None)
+
+        file_path = Path(frame.f_code.co_filename)
+        if file_path == self._current_file_path:
+            return None
+
+        ctx = _temporary_replace_scope_from_frame(
+            frame=frame, target=self.func, new=self.call_with_hooks
+        )
+
+        def ctx_exit_after_return(frame: FrameType, event: str, arg: Any) -> None:
+            if event != "return":
+                return None
+
+            ctx.__exit__(None, None, None)
+
+        ctx.__enter__()
+        return ctx_exit_after_return
+
     @contextmanager
     def hook(self, frame: FrameType):
         try:
@@ -75,6 +101,7 @@ class Hooker:
             with _temporary_replace_scope_from_frame(
                 frame=frame, target=self.func, new=self.call_with_hooks
             ):
+                sys.settrace(self.trace_func)
                 yield
         finally:
             self.hooking = False
