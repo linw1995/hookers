@@ -1,59 +1,23 @@
-import ctypes
-import sys
-from contextlib import ExitStack, contextmanager
-from functools import partial
-from inspect import currentframe
-from pathlib import Path
-from types import FrameType
-from typing import Any, Callable, Dict, Generator, Optional
-
-
-@contextmanager
-def _temporary_replace(scope: Dict[str, Any], target: Any, new: Any):
-    keys = []
-    for key, value in scope.items():
-        if value is not target:
-            continue
-        keys.append(key)
-
-    try:
-        for key in keys:
-            scope[key] = new
-
-        yield
-    finally:
-        for key in keys:
-            scope[key] = target
-
-
-def _apply_frame_change(frame: FrameType):
-    ctypes.pythonapi.PyFrame_LocalsToFast(ctypes.py_object(frame), ctypes.c_int(0))
-
-
-@contextmanager
-def _temporary_replace_scope_from_frame(frame: FrameType, target: Any, new: Any):
-    try:
-        replacer = partial(_temporary_replace, target=target, new=new)
-        with ExitStack() as stack:
-            stack.enter_context(replacer(frame.f_locals))
-            stack.enter_context(replacer(frame.f_globals))
-            _apply_frame_change(frame)
-            yield
-    finally:
-        _apply_frame_change(frame)
+import functools
+import weakref
+from contextlib import contextmanager
+from typing import Any, Generator
 
 
 class Hooker:
     def __init__(self, func):
+        functools.update_wrapper(self, func)
         self.func = func
+        self.instance = None
         self.before_funcs = []
-        self._current_file_path = Path(currentframe().f_code.co_filename)
+
+        self._instance2hooker = weakref.WeakKeyDictionary()
 
     def call_before(self, func):
         self.before_funcs.append(func)
 
         @contextmanager
-        def ctx():
+        def ctx() -> Generator[None, None, None]:
             try:
                 yield
             finally:
@@ -61,71 +25,42 @@ class Hooker:
 
         return ctx()
 
-    def call_with_hooks(self, *args, **kwargs):
-        if not self.hooking:
-            raise RuntimeError("Hooker is not hooking")
+    def __call__(self, *args, **kwargs) -> Any:
+        if self.instance:
+            return self._call_with_hooks(self.instance, *args, **kwargs)
+        else:
+            return self._call_with_hooks(*args, **kwargs)
 
+    def _call_with_hooks(self, *args, **kwargs) -> Any:
         for before_func in self.before_funcs:
             before_func(*args, **kwargs)
 
         return self.func(*args, **kwargs)
 
-    def trace_func(
-        self, frame: FrameType, event: str, arg: Any
-    ) -> Optional[Callable[[FrameType, str, Any], Any]]:
-        assert event == "call"
-        if not self.hooking:
-            sys.settrace(None)
+    @classmethod
+    def copy_from(cls, obj) -> "Hooker":
+        new_obj = cls(obj.func)
+        new_obj.before_funcs = obj.before_funcs.copy()
+        new_obj._instance2hooker = obj._instance2hooker
+        return new_obj
 
-        file_path = Path(frame.f_code.co_filename)
-        if file_path == self._current_file_path:
-            return None
+    def __get__(self, instance, cls) -> "Hooker":
+        """
+        Implement the `__get__` method of descriptor protocol
+        for decorating the class method.
+        """
+        if instance is None:
+            # Unbound method
+            return self
 
-        ctx = _temporary_replace_scope_from_frame(
-            frame=frame, target=self.func, new=self.call_with_hooks
-        )
+        # bound method
+        if instance not in self._instance2hooker:
+            # first time to access
+            new_hooker = self.copy_from(self)
+            new_hooker.instance = instance
+            self._instance2hooker[instance] = new_hooker
 
-        def ctx_exit_after_return(frame: FrameType, event: str, arg: Any) -> None:
-            if event != "return":
-                return None
-
-            ctx.__exit__(None, None, None)
-
-        ctx.__enter__()
-        return ctx_exit_after_return
-
-    @contextmanager
-    def hook(self, frame: FrameType):
-        try:
-            self.hooking = True
-            with _temporary_replace_scope_from_frame(
-                frame=frame, target=self.func, new=self.call_with_hooks
-            ):
-                sys.settrace(self.trace_func)
-                yield
-        finally:
-            self.hooking = False
+        return self._instance2hooker[instance]
 
 
-def getframe(depth: int = 0) -> Optional[FrameType]:
-    frame = currentframe()
-    if frame is None:
-        # If running in an implementation without Python stack frame support,
-        return None
-
-    while frame and depth > -1:
-        frame = frame.f_back
-        depth -= 1
-
-    return frame
-
-
-@contextmanager
-def hook(func) -> Generator[Hooker, None, None]:
-    frame = getframe(depth=2)
-    if not isinstance(frame, FrameType):
-        raise RuntimeError("Cannot hook without frame.")
-
-    hooker = Hooker(func)
-    with hooker.hook(frame):
-        yield hooker
+hook = Hooker
