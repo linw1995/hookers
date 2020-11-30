@@ -1,4 +1,5 @@
 import functools
+import weakref
 from contextlib import contextmanager
 from typing import Any, Generator
 
@@ -9,6 +10,8 @@ class Hooker:
         self.func = func
         self.instance = None
         self.before_funcs = []
+
+        self._instance2hooker = weakref.WeakKeyDictionary()
 
     def call_before(self, func):
         self.before_funcs.append(func)
@@ -37,13 +40,27 @@ class Hooker:
     @classmethod
     def copy_from(cls, obj) -> "Hooker":
         new_obj = cls(obj.func)
-        new_obj.before_funcs = obj.before_funcs
+        new_obj.before_funcs = obj.before_funcs.copy()
+        new_obj._instance2hooker = obj._instance2hooker
         return new_obj
 
     def __get__(self, instance, cls) -> "Hooker":
-        new_hooker = self.copy_from(self)
-        new_hooker.instance = instance
-        return new_hooker
+        """
+        Implement the `__get__` method of descriptor protocol
+        for decorating the class method.
+        """
+        if instance is None:
+            # Unbound method
+            return self
+
+        # bound method
+        if instance not in self._instance2hooker:
+            # first time to access
+            new_hooker = self.copy_from(self)
+            new_hooker.instance = instance
+            self._instance2hooker[instance] = new_hooker
+
+        return self._instance2hooker[instance]
 
 
 hook = Hooker
