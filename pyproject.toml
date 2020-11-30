@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "hookers"
-version = "0.1.1"
+version = "1.0.0"
 license = "MIT"
 description = "Python function call hookers"
 authors = ["林玮 (Jade Lin) <linw1995@icloud.com>"]
@@ -35,7 +35,7 @@ pytest-cov = "^2.10.1"
 
 [tool.commitizen]
 name = "cz_conventional_commits"
-version = "0.1.1"
+version = "1.0.0"
 version_files = ["pyproject.toml:version"]
 tag_format = "$version"
 
