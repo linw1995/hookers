@@ -1,3 +1,5 @@
+import pytest
+
 from hookers import hook
 
 
@@ -104,3 +106,24 @@ def test_obj_hooked_method_got_overwrited():
     person.hello = lambda x: f"hello {x}"
     assert isinstance(Person.hello, hook)
     assert person.hello("world") == "hello world"
+
+
+@pytest.mark.asyncio
+async def test_hook_async_func_call_before():
+    @hook
+    async def hello(name):
+        return f"hello {name}"
+
+    args = ("world",)
+    kwargs = {}
+    rv = "hello world"
+
+    inputs = []
+
+    def dump_input(*args, **kwargs):
+        inputs.append((args, kwargs))
+
+    hello.call_before(dump_input)
+
+    assert await hello(*args, **kwargs) == rv
+    assert inputs == [(args, kwargs)]
