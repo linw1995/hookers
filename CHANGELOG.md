@@ -1,3 +1,9 @@
+## 1.1.0 (2020-12-01)
+
+### Feat
+
+- allow to add async hooker if hooking async function
+
 ## 1.0.0 (2020-12-01)
 
 ### Fix
