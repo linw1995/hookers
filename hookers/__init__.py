@@ -1,3 +1,4 @@
+import asyncio
 import functools
 import weakref
 from contextlib import contextmanager
@@ -8,12 +9,16 @@ class Hooker:
     def __init__(self, func):
         functools.update_wrapper(self, func)
         self.func = func
+        self.is_async_mode = asyncio.iscoroutinefunction(func)
         self.instance = None
         self.before_funcs = []
 
         self._instance2hooker = weakref.WeakKeyDictionary()
 
     def call_before(self, func):
+        if asyncio.iscoroutinefunction(func) and not self.is_async_mode:
+            raise ValueError("Cannot hook un-async function with async func")
+
         self.before_funcs.append(func)
 
         @contextmanager
@@ -26,16 +31,30 @@ class Hooker:
         return ctx()
 
     def __call__(self, *args, **kwargs) -> Any:
-        if self.instance:
-            return self._call_with_hooks(self.instance, *args, **kwargs)
+        if self.is_async_mode:
+            caller = self._async_call_with_hooks
         else:
-            return self._call_with_hooks(*args, **kwargs)
+            caller = self._call_with_hooks
+
+        if self.instance:
+            return caller(self.instance, *args, **kwargs)
+        else:
+            return caller(*args, **kwargs)
 
     def _call_with_hooks(self, *args, **kwargs) -> Any:
         for before_func in self.before_funcs:
             before_func(*args, **kwargs)
 
         return self.func(*args, **kwargs)
+
+    async def _async_call_with_hooks(self, *args, **kwargs) -> Any:
+        for before_func in self.before_funcs:
+            if asyncio.iscoroutinefunction(before_func):
+                await before_func(*args, **kwargs)
+            else:
+                before_func(*args, **kwargs)
+
+        return await self.func(*args, **kwargs)
 
     @classmethod
     def copy_from(cls, obj) -> "Hooker":
