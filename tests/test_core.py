@@ -23,6 +23,26 @@ def test_hook_func_call_before():
     assert inputs == [(args, kwargs)]
 
 
+def test_hook_func_call_after():
+    @hook
+    def hello(name):
+        return f"hello {name}"
+
+    args = ("world",)
+    kwargs = {}
+    rv = "hello world"
+
+    outputs = []
+
+    def dump_output(rv):
+        outputs.append(rv)
+
+    hello.call_after(dump_output)
+
+    assert hello(*args, **kwargs) == rv
+    assert outputs == [rv]
+
+
 def test_temporary_hook_func_call_before():
     @hook
     def hello(name):
@@ -46,6 +66,25 @@ def test_temporary_hook_func_call_before():
 
     assert hello(*args, **kwargs) == rv
     assert inputs == [(args, kwargs)]
+
+
+def test_temporary_hook_func_call_after():
+    @hook
+    def hello(name):
+        return f"hello {name}"
+
+    args = ("world",)
+    kwargs = {}
+    rv = "hello world"
+
+    outputs = []
+
+    def dump_output(rv):
+        outputs.append(rv)
+
+    with hello.call_after(dump_output):
+        assert hello(*args, **kwargs) == rv
+        assert outputs == [rv]
 
 
 def test_hook_obj_method():
@@ -142,6 +181,27 @@ async def test_hook_async_func_call_before():
 
 
 @pytest.mark.asyncio
+async def test_hook_async_func_call_after():
+    @hook
+    async def hello(name):
+        return f"hello {name}"
+
+    args = ("world",)
+    kwargs = {}
+    rv = "hello world"
+
+    outputs = []
+
+    def dump_output(rv):
+        outputs.append(rv)
+
+    hello.call_after(dump_output)
+
+    assert await hello(*args, **kwargs) == rv
+    assert outputs == [rv]
+
+
+@pytest.mark.asyncio
 async def test_hook_async_func_call_before_with_async_func():
     @hook
     async def hello(name):
@@ -160,3 +220,24 @@ async def test_hook_async_func_call_before_with_async_func():
 
     assert await hello(*args, **kwargs) == rv
     assert inputs == [(args, kwargs)]
+
+
+@pytest.mark.asyncio
+async def test_hook_async_func_call_after_with_async_func():
+    @hook
+    async def hello(name):
+        return f"hello {name}"
+
+    args = ("world",)
+    kwargs = {}
+    rv = "hello world"
+
+    outputs = []
+
+    async def dump_output(rv):
+        outputs.append(rv)
+
+    hello.call_after(dump_output)
+
+    assert await hello(*args, **kwargs) == rv
+    assert outputs == [rv]
