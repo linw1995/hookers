@@ -64,9 +64,6 @@ def test_temporary_hook_func_call_before():
     assert hello(*args, **kwargs) == rv
     assert inputs == [(args, kwargs)]
 
-    assert hello(*args, **kwargs) == rv
-    assert inputs == [(args, kwargs)]
-
 
 def test_temporary_hook_func_call_after():
     @hook
@@ -85,6 +82,9 @@ def test_temporary_hook_func_call_after():
     with hello.call_after(dump_output):
         assert hello(*args, **kwargs) == rv
         assert outputs == [rv]
+
+    assert hello(*args, **kwargs) == rv
+    assert outputs == [rv]
 
 
 def test_hook_obj_method():
@@ -241,3 +241,91 @@ async def test_hook_async_func_call_after_with_async_func():
 
     assert await hello(*args, **kwargs) == rv
     assert outputs == [rv]
+
+
+def test_hook_func_with_decorator():
+    @hook
+    def hello(name):
+        return f"hello {name}"
+
+    results = []
+
+    def dump_invocation(func):
+        def wrap(*args, **kwargs):
+            rv = func(*args, **kwargs)
+            results.append((args, kwargs, rv))
+            return rv
+
+        return wrap
+
+    hello.decorated_by(dump_invocation)
+
+    assert hello("world") == "hello world"
+    assert results == [(("world",), {}, "hello world")]
+
+
+def test_temporary_hook_func_with_decorator():
+    @hook
+    def hello(name):
+        return f"hello {name}"
+
+    results = []
+
+    def dump_invocation(func):
+        def wrap(*args, **kwargs):
+            rv = func(*args, **kwargs)
+            results.append((args, kwargs, rv))
+            return rv
+
+        return wrap
+
+    with hello.decorated_by(dump_invocation):
+        assert hello("world") == "hello world"
+        assert results == [(("world",), {}, "hello world")]
+
+    assert hello("world") == "hello world"
+    assert results == [(("world",), {}, "hello world")]
+
+
+def test_hook_with_invalid_decorator():
+    @hook
+    def hello(name):
+        return f"hello {name}"
+
+    with pytest.raises(ValueError):
+
+        async def boo(func):
+            pass
+
+        hello.decorated_by(boo)
+
+
+def test_hook_func_with_decorators():
+    @hook
+    def hello(name):
+        return f"hello {name}"
+
+    inputs = []
+    outputs = []
+
+    def dump_input(func):
+        def wrap(*args, **kwargs):
+            rv = func(*args, **kwargs)
+            inputs.append((args, kwargs))
+            return rv
+
+        return wrap
+
+    def dump_output(func):
+        def wrap(*args, **kwargs):
+            rv = func(*args, **kwargs)
+            outputs.append(rv)
+            return rv
+
+        return wrap
+
+    hello.decorated_by(dump_input)
+    hello.decorated_by(dump_output)
+    assert hello("world") == "hello world"
+    assert inputs == [(("world",), {})]
+    assert outputs == ["hello world"]

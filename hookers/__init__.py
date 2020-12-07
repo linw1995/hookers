@@ -22,12 +22,13 @@ class Hooker(Func):
         self.instance = None
         self.before_funcs: List[Func] = []
         self.after_funcs: List[Func] = []
+        self.decorators: List[Func] = []
 
         self._instance2hooker = weakref.WeakKeyDictionary()
 
     def _validate_hook(self, func: Func):
         if func.is_async_func and not self.is_async_func:
-            raise ValueError("Cannot hook un-async function with async func")
+            raise ValueError("Cannot hook an un-async function with an async function")
 
     def call_before(self, func):
         func = Func(func)
@@ -57,6 +58,31 @@ class Hooker(Func):
 
         return ctx()
 
+    def decorated_by(self, func):
+        # TODO: need more validations of paramater "func"
+        func = Func(func)
+        if func.is_async_func:
+            raise ValueError("The decorator must be an un-async function")
+
+        self.decorators.append(func)
+
+        @contextmanager
+        def ctx() -> Generator[None, None, None]:
+            try:
+                yield
+            finally:
+                self.decorators.remove(func)
+
+        return ctx()
+
+    @property
+    def decorated_func(self):
+        func = self.func
+        for decorator in self.decorators:
+            func = decorator(func)
+
+        return func
+
     def __call__(self, *args, **kwargs) -> Any:
         if self.is_async_func:
             caller = self._async_call_with_hooks
@@ -72,7 +98,7 @@ class Hooker(Func):
         for before_func in self.before_funcs:
             before_func(*args, **kwargs)
 
-        rv = self.func(*args, **kwargs)
+        rv = self.decorated_func(*args, **kwargs)
 
         for after_func in self.after_funcs:
             after_func(rv)
