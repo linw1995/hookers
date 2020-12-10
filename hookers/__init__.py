@@ -126,6 +126,8 @@ class Hooker(Func):
     def copy_from(cls, obj) -> "Hooker":
         new_obj = cls(obj.func)
         new_obj.before_funcs = obj.before_funcs.copy()
+        new_obj.after_funcs = obj.after_funcs.copy()
+        new_obj.decorators = obj.decorators.copy()
         new_obj._instance2hooker = obj._instance2hooker
         return new_obj
 

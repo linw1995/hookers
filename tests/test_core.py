@@ -329,3 +329,35 @@ def test_hook_func_with_decorators():
     assert hello("world") == "hello world"
     assert inputs == [(("world",), {})]
     assert outputs == ["hello world"]
+
+
+def test_hook_method_with_decorator():
+    class Person:
+        @hook
+        def hello(self, name):
+            return f"hello {name}"
+
+    results = []
+
+    def dump_invocation(func):
+        def wrap(*args, **kwargs):
+            rv = func(*args, **kwargs)
+            results.append((args, kwargs, rv))
+            return rv
+
+        return wrap
+
+    Person.hello.decorated_by(dump_invocation)
+
+    jack = Person()
+    assert jack.hello("world") == "hello world"
+    assert results == [
+        (
+            (
+                jack,
+                "world",
+            ),
+            {},
+            "hello world",
+        )
+    ]
